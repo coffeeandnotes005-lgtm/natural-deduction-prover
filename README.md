@@ -16,3 +16,7 @@ This project was developed with reference to Sieg & Byrnes, *Normal Natural Dedu
 ## Usage
 
 Enter premises and a conclusion, then click **Proof**.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0.
