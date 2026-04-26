@@ -1564,7 +1564,7 @@ P ∧ Q ∧ R ∧ S
 
     const icTreeMetricCache = new WeakMap();
 
-    const MAX_ROOT_ATTEMPTS = 250;
+    const MAX_ROOT_ATTEMPTS = 800;
     const PROOF_TIME_LIMIT_MS = 10000;
     const PROOF_TIMEOUT_ERROR = "PROOF_TIMEOUT";
 
@@ -2345,25 +2345,450 @@ P ∧ Q ∧ R ∧ S
       return false;
     }
 
-    function tryDirectProofFromContext(goal, ctx) {
+    const STRUCTURED_PROOF_DEPTH_LIMIT = 11;
+
+    function contextKey(ctx) {
+      return (ctx || []).map((node) => formulaToString(node.formula)).sort().join("|");
+    }
+
+    function findExistentialProofsInContext(ctx) {
+      const out = [];
+      const seen = new Set();
+      for (const node of ctx || []) {
+        if (!node || !node.formula || node.formula.type !== FormulaType.Existential) continue;
+        const key = formulaToString(node.formula);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(node);
+      }
+      return out;
+    }
+
+    function contextHasExistentialInstance(ctx, existentialFormula) {
+      const terms = collectTermsFromProofContext(ctx);
+      for (const term of terms) {
+        const instance = instantiateQuantifiedFormula(existentialFormula, term);
+        if (instance && findProofWithFormula(ctx, instance)) return true;
+      }
+      return false;
+    }
+
+    function pickFreshExistentialWitnessForProof(ctx, existentialFormula, goal) {
+      const used = new Set();
+      for (const node of ctx || []) {
+        if (node && node.formula) collectFreeVariablesFormula(node.formula, used);
+      }
+      if (goal) collectFreeVariablesFormula(goal, used);
+      const preferred = existentialFormula && existentialFormula.variable ? existentialFormula.variable : null;
+      if (preferred && !used.has(preferred)) return preferred;
+      return chooseFreshVariableSymbol((ctx || []).map((node) => node.formula), existentialFormula, goal, used);
+    }
+
+
+    function makeExistsNegFromNegForallStructuredProof(goal, sourceNode, ctx) {
+      if (!goal || goal.type !== FormulaType.Existential || !goal.left || goal.left.type !== FormulaType.Negation) return null;
+      if (!sourceNode || !sourceNode.formula || sourceNode.formula.type !== FormulaType.Negation) return null;
+      const universal = sourceNode.formula.left;
+      if (!universal || universal.type !== FormulaType.Universal) return null;
+      const fresh = pickFreshExistentialWitnessForProof(ctx || [], goal, sourceNode.formula) || chooseFreshVariableSymbol(goal, sourceNode.formula);
+      const witnessTerm = Term.createVariable(fresh);
+      const universalInstance = instantiateQuantifiedFormula(universal, witnessTerm);
+      const goalInstance = instantiateQuantifiedFormula(goal, witnessTerm);
+      if (!universalInstance || !goalInstance || goalInstance.type !== FormulaType.Negation) return null;
+      if (!equalFormula(universalInstance, goalInstance.left)) return null;
+      const negGoalAssumption = makeSimpleNode(negateFormula(goal), "Assumption");
+      const negInstanceAssumption = makeSimpleNode(goalInstance, "Assumption");
+      const existsNeg = makeUnaryNode(goal, "∃I", negInstanceAssumption);
+      const innerContradiction = makeContradictionNode(existsNeg, negGoalAssumption);
+      const positiveInstance = createNDProofNode({ formula: universalInstance, reason: "RAA", subAssumption1: negInstanceAssumption, subEnd1: innerContradiction });
+      const universalProof = makeUnaryNode(universal, "∀I", positiveInstance);
+      const outerContradiction = makeContradictionNode(universalProof, sourceNode);
+      return createNDProofNode({ formula: goal, reason: "RAA", subAssumption1: negGoalAssumption, subEnd1: outerContradiction });
+    }
+
+    function makeForallNegFromNegExistsStructuredProof(goal, sourceNode, ctx) {
+      if (!goal || goal.type !== FormulaType.Universal || !goal.left || goal.left.type !== FormulaType.Negation) return null;
+      if (!sourceNode || !sourceNode.formula || sourceNode.formula.type !== FormulaType.Negation) return null;
+      const existential = sourceNode.formula.left;
+      if (!existential || existential.type !== FormulaType.Existential) return null;
+      const fresh = pickFreshExistentialWitnessForProof(ctx || [], goal, sourceNode.formula) || chooseFreshVariableSymbol(goal, sourceNode.formula);
+      const witnessTerm = Term.createVariable(fresh);
+      const goalInstance = instantiateQuantifiedFormula(goal, witnessTerm);
+      const existsInstance = instantiateQuantifiedFormula(existential, witnessTerm);
+      if (!goalInstance || !existsInstance || goalInstance.type !== FormulaType.Negation) return null;
+      if (!equalFormula(goalInstance.left, existsInstance)) return null;
+      const positiveAssumption = makeSimpleNode(existsInstance, "Assumption");
+      const existsProof = makeUnaryNode(existential, "∃I", positiveAssumption);
+      const contradiction = makeContradictionNode(existsProof, sourceNode);
+      const negInstanceProof = createNDProofNode({ formula: goalInstance, reason: "~I", subAssumption1: positiveAssumption, subEnd1: contradiction });
+      return makeUnaryNode(goal, "∀I", negInstanceProof);
+    }
+
+
+    function makeExistsForallNegFromNegForallExistsStructuredProof(goal, sourceNode, ctx) {
+      if (!goal || goal.type !== FormulaType.Existential || !goal.left || goal.left.type !== FormulaType.Universal) return null;
+      const innerUniversal = goal.left;
+      if (!innerUniversal.left || innerUniversal.left.type !== FormulaType.Negation) return null;
+      if (!sourceNode || !sourceNode.formula || sourceNode.formula.type !== FormulaType.Negation) return null;
+      const sourceUniversal = sourceNode.formula.left;
+      if (!sourceUniversal || sourceUniversal.type !== FormulaType.Universal) return null;
+      const freshX = pickFreshExistentialWitnessForProof(ctx || [], goal, sourceNode.formula) || chooseFreshVariableSymbol(goal, sourceNode.formula);
+      const xTerm = Term.createVariable(freshX);
+      const sourceXInstance = instantiateQuantifiedFormula(sourceUniversal, xTerm);
+      const goalXInstance = instantiateQuantifiedFormula(goal, xTerm);
+      if (!sourceXInstance || sourceXInstance.type !== FormulaType.Existential) return null;
+      if (!goalXInstance || goalXInstance.type !== FormulaType.Universal || !goalXInstance.left || goalXInstance.left.type !== FormulaType.Negation) return null;
+      const freshY = pickFreshExistentialWitnessForProof(ctx || [], goalXInstance, sourceXInstance) || chooseFreshVariableSymbol(goalXInstance, sourceXInstance);
+      const yTerm = Term.createVariable(freshY);
+      const sourceXYInstance = instantiateQuantifiedFormula(sourceXInstance, yTerm);
+      const goalXYInstance = instantiateQuantifiedFormula(goalXInstance, yTerm);
+      if (!sourceXYInstance || !goalXYInstance || goalXYInstance.type !== FormulaType.Negation) return null;
+      if (!equalFormula(sourceXYInstance, goalXYInstance.left)) return null;
+
+      const negGoalAssumption = makeSimpleNode(negateFormula(goal), "Assumption");
+      const negExistsYAssumption = makeSimpleNode(negateFormula(sourceXInstance), "Assumption");
+      const forallNegY = makeForallNegFromNegExistsStructuredProof(goalXInstance, negExistsYAssumption, [...(ctx || []), negGoalAssumption, negExistsYAssumption]);
+      if (!forallNegY) return null;
+      const existsForallNeg = makeUnaryNode(goal, "∃I", forallNegY);
+      const contradictionInner = makeContradictionNode(existsForallNeg, negGoalAssumption);
+      const existsYProof = createNDProofNode({ formula: sourceXInstance, reason: "RAA", subAssumption1: negExistsYAssumption, subEnd1: contradictionInner });
+      const forallExistsProof = makeUnaryNode(sourceUniversal, "∀I", existsYProof);
+      const outerContradiction = makeContradictionNode(forallExistsProof, sourceNode);
+      return createNDProofNode({ formula: goal, reason: "RAA", subAssumption1: negGoalAssumption, subEnd1: outerContradiction });
+    }
+
+    function tryExistsForallNegFromNegForallExistsSchemaProof(goal, ctx) {
       if (!goal) return null;
-      if (formulaContainsQuantifier(goal) || proofContextContainsQuantifier(ctx)) return null;
-      const direct = findProofWithFormula(ctx, goal);
+      const closure = deriveContextClosure(ctx || [], 7);
+      for (const node of closure) {
+        const proof = makeExistsForallNegFromNegForallExistsStructuredProof(goal, node, closure);
+        if (proof) return proof;
+      }
+      return null;
+    }
+
+    function tryQuantifierNegationSchemaProof(goal, ctx) {
+      if (!goal) return null;
+      const closure = deriveContextClosure(ctx || [], 7);
+      if (goal.type === FormulaType.Existential && goal.left && goal.left.type === FormulaType.Negation) {
+        for (const node of closure) {
+          const proof = makeExistsNegFromNegForallStructuredProof(goal, node, closure);
+          if (proof) return proof;
+        }
+      }
+      if (goal.type === FormulaType.Universal && goal.left && goal.left.type === FormulaType.Negation) {
+        for (const node of closure) {
+          const proof = makeForallNegFromNegExistsStructuredProof(goal, node, closure);
+          if (proof) return proof;
+        }
+      }
+      return null;
+    }
+
+    function tryClassicalOrByNegatedSide(goal, ctx, depth, visited) {
+      if (!goal || goal.type !== FormulaType.Disjunction || !goal.left || !goal.right || depth <= 1) return null;
+      const closure = deriveContextClosure(ctx || [], 7);
+      const notGoal = makeSimpleNode(negateFormula(goal), "Assumption");
+      function deriveNegSide(side, orIntroReason) {
+        const sideAssumption = makeSimpleNode(side, "Assumption");
+        const disjFromSide = makeUnaryNode(goal, orIntroReason, sideAssumption);
+        const contradiction = makeContradictionNode(disjFromSide, notGoal);
+        return createNDProofNode({ formula: negateFormula(side), reason: "~I", subAssumption1: sideAssumption, subEnd1: contradiction });
+      }
+      const notLeft = deriveNegSide(goal.left, "∨I 1");
+      const rightProof = tryStructuredProofFromContext(goal.right, [...closure, notGoal, notLeft], depth - 1, visited);
+      if (rightProof) {
+        const disjFromRight = makeUnaryNode(goal, "∨I 2", rightProof);
+        const contradiction = makeContradictionNode(disjFromRight, notGoal);
+        return createNDProofNode({ formula: goal, reason: "RAA", subAssumption1: notGoal, subEnd1: contradiction });
+      }
+      const notRight = deriveNegSide(goal.right, "∨I 2");
+      const leftProof = tryStructuredProofFromContext(goal.left, [...closure, notGoal, notRight], depth - 1, visited);
+      if (leftProof) {
+        const disjFromLeft = makeUnaryNode(goal, "∨I 1", leftProof);
+        const contradiction = makeContradictionNode(disjFromLeft, notGoal);
+        return createNDProofNode({ formula: goal, reason: "RAA", subAssumption1: notGoal, subEnd1: contradiction });
+      }
+      return null;
+    }
+
+    function maybeBuildNegatedExistentialOfAntecedentFromDrinkerGoal(goal) {
+      if (!goal || goal.type !== FormulaType.Existential || !goal.left || goal.left.type !== FormulaType.Implication) return null;
+      const antecedent = goal.left.left;
+      const consequent = goal.left.right;
+      if (!antecedent || !consequent || consequent.type !== FormulaType.Universal) return null;
+      const witness = Term.createVariable(goal.variable);
+      const consequentBody = instantiateQuantifiedFormula(consequent, witness);
+      if (!consequentBody || !equalFormula(antecedent, consequentBody)) return null;
+      return Formula.createExistential(goal.variable, negateFormula(antecedent));
+    }
+
+    function makeLemmaExcludedMiddle(formula) {
+      if (!formula) return null;
+      const lem = Formula.createBinary(FormulaType.Disjunction, formula, negateFormula(formula));
+      return tryStructuredProofFromContext(lem, [], 5, new Set());
+    }
+
+
+    function makeDrinkerSchemaProof(goal, ctx) {
+      if (!goal || goal.type !== FormulaType.Existential || !goal.left || goal.left.type !== FormulaType.Implication) return null;
+      const antecedentPattern = goal.left.left;
+      const consequent = goal.left.right;
+      if (!antecedentPattern || !consequent || consequent.type !== FormulaType.Universal) return null;
+      const xTermForPattern = Term.createVariable(goal.variable);
+      const consequentPatternBody = instantiateQuantifiedFormula(consequent, xTermForPattern);
+      if (!consequentPatternBody || !equalFormula(antecedentPattern, consequentPatternBody)) return null;
+
+      const split = Formula.createExistential(goal.variable, negateFormula(antecedentPattern));
+      const lem = Formula.createBinary(FormulaType.Disjunction, split, negateFormula(split));
+      const lemProof = makeLemmaExcludedMiddle(split);
+      if (!lemProof) return null;
+
+      const freshX = pickFreshExistentialWitnessForProof(ctx || [], goal, split) || chooseFreshVariableSymbol(goal, split);
+      const xTerm = Term.createVariable(freshX);
+      const ax = instantiateQuantifiedFormula(Formula.createUniversal(goal.variable, antecedentPattern), xTerm);
+      const notAx = negateFormula(ax);
+      const forallA = Formula.createUniversal(goal.variable, antecedentPattern);
+      const forallYAy = instantiateQuantifiedFormula(goal, xTerm).right;
+      const implicationAtX = instantiateQuantifiedFormula(goal, xTerm);
+      if (!ax || !forallYAy || !implicationAtX) return null;
+
+      // Left branch: ∃x¬Ax
+      const leftAssumption = makeSimpleNode(split, "Assumption");
+      const notAxAssumption = makeSimpleNode(notAx, "Assumption");
+      const axAssumptionLeft = makeSimpleNode(ax, "Assumption");
+      const clashLeft = makeContradictionNode(axAssumptionLeft, notAxAssumption);
+      const negForallAssumptionLeft = makeSimpleNode(negateFormula(forallYAy), "Assumption");
+      const forallFromClashLeft = createNDProofNode({ formula: forallYAy, reason: "RAA", subAssumption1: negForallAssumptionLeft, subEnd1: clashLeft });
+      const impLeft = createNDProofNode({ formula: implicationAtX, reason: "->I", subAssumption1: axAssumptionLeft, subEnd1: forallFromClashLeft });
+      const existsGoalLeftInner = makeUnaryNode(goal, "∃I", impLeft);
+      const leftEnd = createNDProofNode({ formula: goal, reason: "∃E", parent1: leftAssumption, subAssumption1: notAxAssumption, subEnd1: existsGoalLeftInner });
+
+      // Right branch: ¬∃x¬Ax
+      const rightAssumption = makeSimpleNode(negateFormula(split), "Assumption");
+      const negAxAssumptionForAll = makeSimpleNode(notAx, "Assumption");
+      const splitFromNegAx = makeUnaryNode(split, "∃I", negAxAssumptionForAll);
+      const contradictionForAll = makeContradictionNode(splitFromNegAx, rightAssumption);
+      const axByRAA = createNDProofNode({ formula: ax, reason: "RAA", subAssumption1: negAxAssumptionForAll, subEnd1: contradictionForAll });
+      const forallAProof = makeUnaryNode(forallA, "∀I", axByRAA);
+      const axAssumptionRight = makeSimpleNode(ax, "Assumption");
+      const freshY = pickFreshExistentialWitnessForProof([...(ctx || []), rightAssumption, forallAProof], consequent, goal) || chooseFreshVariableSymbol(goal, consequent);
+      const yTerm = Term.createVariable(freshY);
+      const ay = instantiateQuantifiedFormula(forallA, yTerm);
+      const ayProof = makeUnaryNode(ay, "∀E", forallAProof);
+      const forallYProof = makeUnaryNode(forallYAy, "∀I", ayProof);
+      const impRight = createNDProofNode({ formula: implicationAtX, reason: "->I", subAssumption1: axAssumptionRight, subEnd1: forallYProof });
+      const rightEnd = makeUnaryNode(goal, "∃I", impRight);
+
+      return createNDProofNode({ formula: goal, reason: "∨E", parent1: lemProof, subAssumption1: leftAssumption, subEnd1: leftEnd, subAssumption2: rightAssumption, subEnd2: rightEnd });
+    }
+
+    function tryProofByGeneratedCaseSplit(goal, ctx, depth, visited) {
+      if (!goal || depth <= 2) return null;
+      const splitFormula = maybeBuildNegatedExistentialOfAntecedentFromDrinkerGoal(goal);
+      if (!splitFormula) return null;
+      const lemProof = makeLemmaExcludedMiddle(splitFormula);
+      if (!lemProof) return null;
+      const leftAssumption = makeSimpleNode(splitFormula, "Assumption");
+      const leftEnd = tryStructuredProofFromContext(goal, [...ctx, leftAssumption], depth - 1, visited);
+      if (!leftEnd) return null;
+      const rightAssumptionFormula = negateFormula(splitFormula);
+      const rightAssumption = makeSimpleNode(rightAssumptionFormula, "Assumption");
+      const rightEnd = tryStructuredProofFromContext(goal, [...ctx, rightAssumption], depth - 1, visited);
+      if (!rightEnd) return null;
+      return createNDProofNode({ formula: goal, reason: "∨E", parent1: lemProof, subAssumption1: leftAssumption, subEnd1: leftEnd, subAssumption2: rightAssumption, subEnd2: rightEnd });
+    }
+
+    function tryStructuredContradictionFromContext(ctx, depth = STRUCTURED_PROOF_DEPTH_LIMIT, visited = new Set()) {
+      if (depth <= 0) return null;
+      const closure = deriveContextClosure(ctx, 7);
+      const directContradiction = findProofWithFormula(closure, Formula.createContradiction());
+      if (directContradiction) return directContradiction;
+      const [pos, neg] = findClashWitnessInContext(closure);
+      if (pos && neg) return makeContradictionNode(pos, neg);
+
+      const stateKey = `⊥|${depth}|${contextKey(closure)}`;
+      if (visited.has(stateKey)) return null;
+      visited.add(stateKey);
+
+      for (const existsNode of findExistentialProofsInContext(closure)) {
+        if (contextHasExistentialInstance(closure, existsNode.formula)) continue;
+        const fresh = pickFreshExistentialWitnessForProof(closure, existsNode.formula, Formula.createContradiction());
+        if (!fresh) continue;
+        const witnessTerm = Term.createVariable(fresh);
+        const assumptionFormula = instantiateQuantifiedFormula(existsNode.formula, witnessTerm);
+        if (!assumptionFormula) continue;
+        if (findProofWithFormula(closure, assumptionFormula)) continue;
+        const assumption = makeSimpleNode(assumptionFormula, "Assumption");
+        const subEnd = tryStructuredContradictionFromContext([...closure, assumption], depth - 1, visited);
+        if (subEnd) {
+          return createNDProofNode({
+            formula: Formula.createContradiction(),
+            reason: "∃E",
+            parent1: existsNode,
+            subAssumption1: assumption,
+            subEnd1: subEnd,
+          });
+        }
+      }
+
+      for (const negNode of closure) {
+        const f = negNode && negNode.formula;
+        if (!f || f.type !== FormulaType.Negation || !f.left) continue;
+        const positiveProof = tryStructuredProofFromContext(f.left, closure, depth - 1, visited);
+        if (positiveProof) return makeContradictionNode(positiveProof, negNode);
+      }
+
+      return null;
+    }
+
+    function tryStructuredProofFromContext(goal, ctx, depth = STRUCTURED_PROOF_DEPTH_LIMIT, visited = new Set()) {
+      if (!goal || depth <= 0) return null;
+      const closure = deriveContextClosure(ctx, 7);
+      const direct = findProofWithFormula(closure, goal);
       if (direct) return direct;
 
-      const closure = deriveContextClosure(ctx, 5);
-      const derived = findProofWithFormula(closure, goal);
-      if (derived) return derived;
+      const existsForallNegSchemaProof = tryExistsForallNegFromNegForallExistsSchemaProof(goal, closure);
+      if (existsForallNegSchemaProof) return existsForallNegSchemaProof;
+
+      const qNegSchemaProof = tryQuantifierNegationSchemaProof(goal, closure);
+      if (qNegSchemaProof) return qNegSchemaProof;
+
+      const stateKey = `${formulaToString(goal)}|${depth}|${contextKey(closure)}`;
+      if (visited.has(stateKey)) return null;
+      visited.add(stateKey);
+
+      if (goal.type === FormulaType.Contradiction) {
+        return tryStructuredContradictionFromContext(closure, depth, visited);
+      }
+
+      if (goal.type === FormulaType.Conjunction && goal.left && goal.right) {
+        const leftProof = tryStructuredProofFromContext(goal.left, closure, depth - 1, visited);
+        if (!leftProof) return null;
+        const rightProof = tryStructuredProofFromContext(goal.right, closure, depth - 1, visited);
+        if (!rightProof) return null;
+        return makeBinaryNode(goal, "&I", leftProof, rightProof);
+      }
+
+      if (goal.type === FormulaType.Disjunction && goal.left && goal.right) {
+        let positiveSide = null;
+        let negativeSide = null;
+        let negOnRight = false;
+        if (goal.right.type === FormulaType.Negation && equalFormula(goal.right.left, goal.left)) {
+          positiveSide = goal.left;
+          negativeSide = goal.right;
+          negOnRight = true;
+        } else if (goal.left.type === FormulaType.Negation && equalFormula(goal.left.left, goal.right)) {
+          positiveSide = goal.right;
+          negativeSide = goal.left;
+          negOnRight = false;
+        }
+        if (positiveSide && negativeSide) {
+          const notGoal = makeSimpleNode(negateFormula(goal), "Assumption");
+          const posAssumption = makeSimpleNode(positiveSide, "Assumption");
+          const disjFromPos = makeUnaryNode(goal, negOnRight ? "∨I 1" : "∨I 2", posAssumption);
+          const contradictionFromPos = makeContradictionNode(disjFromPos, notGoal);
+          const derivedNeg = createNDProofNode({
+            formula: negativeSide,
+            reason: "~I",
+            subAssumption1: posAssumption,
+            subEnd1: contradictionFromPos,
+          });
+          const disjFromNeg = makeUnaryNode(goal, negOnRight ? "∨I 2" : "∨I 1", derivedNeg);
+          const finalContradiction = makeContradictionNode(disjFromNeg, notGoal);
+          return createNDProofNode({
+            formula: goal,
+            reason: "RAA",
+            subAssumption1: notGoal,
+            subEnd1: finalContradiction,
+          });
+        }
+        const classicalOr = tryClassicalOrByNegatedSide(goal, closure, depth - 1, visited);
+        if (classicalOr) return classicalOr;
+      }
+
+      if (goal.type === FormulaType.Implication && goal.left && goal.right) {
+        const assumption = makeSimpleNode(goal.left, "Assumption");
+        const body = tryStructuredProofFromContext(goal.right, [...closure, assumption], depth - 1, visited);
+        if (!body) return null;
+        return createNDProofNode({ formula: goal, reason: "->I", subAssumption1: assumption, subEnd1: body });
+      }
+
+      if (goal.type === FormulaType.Negation && goal.left) {
+        const assumption = makeSimpleNode(goal.left, "Assumption");
+        const contradiction = tryStructuredContradictionFromContext([...closure, assumption], depth - 1, visited);
+        if (!contradiction) return null;
+        return createNDProofNode({ formula: goal, reason: "~I", subAssumption1: assumption, subEnd1: contradiction });
+      }
+
+      if (goal.type === FormulaType.Universal && goal.left) {
+        const fresh = pickFreshExistentialWitnessForProof(closure, goal, goal);
+        if (!fresh) return null;
+        const witnessTerm = Term.createVariable(fresh);
+        const bodyGoal = instantiateQuantifiedFormula(goal, witnessTerm);
+        const body = tryStructuredProofFromContext(bodyGoal, closure, depth - 1, visited);
+        if (!body) return null;
+        return makeUnaryNode(goal, "∀I", body);
+      }
+
+      if (goal.type === FormulaType.Existential && goal.left) {
+        const terms = collectTermsFromProofContext(closure);
+        const freshForExists = pickFreshExistentialWitnessForProof(closure, goal, goal);
+        if (freshForExists) terms.push(Term.createVariable(freshForExists));
+        const uniqueTerms = uniqueTermsPreserveOrder(terms);
+        for (const term of uniqueTerms) {
+          const bodyGoal = instantiateQuantifiedFormula(goal, term);
+          if (!bodyGoal) continue;
+          const body = tryStructuredProofFromContext(bodyGoal, closure, depth - 1, visited);
+          if (body) return makeUnaryNode(goal, "∃I", body);
+        }
+        const drinkerSchemaProof = makeDrinkerSchemaProof(goal, closure);
+        if (drinkerSchemaProof) return drinkerSchemaProof;
+        const splitProof = tryProofByGeneratedCaseSplit(goal, closure, depth - 1, visited);
+        if (splitProof) return splitProof;
+      }
+
+
+      // Goal-directed implication elimination: if some available implication A -> goal
+      // can derive the current goal, recursively prove A as a subgoal.
+      // This is the missing backward step needed for cases like proving Lxe
+      // from (Px ∧ Lxa) -> Lxe together with Px and Lxa.
+      for (const impNode of closure) {
+        const imp = impNode && impNode.formula;
+        if (!imp || imp.type !== FormulaType.Implication || !imp.left || !imp.right) continue;
+        if (!equalFormula(imp.right, goal)) continue;
+        if (equalFormula(imp.left, goal)) continue;
+
+        const antecedentProof = tryStructuredProofFromContext(imp.left, closure, depth - 1, visited);
+        if (!antecedentProof) continue;
+        return makeBinaryNode(goal, "->E", impNode, antecedentProof);
+      }
+      for (const existsNode of findExistentialProofsInContext(closure)) {
+        if (contextHasExistentialInstance(closure, existsNode.formula)) continue;
+        const fresh = pickFreshExistentialWitnessForProof(closure, existsNode.formula, goal);
+        if (!fresh) continue;
+        const witnessTerm = Term.createVariable(fresh);
+        const assumptionFormula = instantiateQuantifiedFormula(existsNode.formula, witnessTerm);
+        if (!assumptionFormula) continue;
+        if (findProofWithFormula(closure, assumptionFormula)) continue;
+        const assumption = makeSimpleNode(assumptionFormula, "Assumption");
+        const subEnd = tryStructuredProofFromContext(goal, [...closure, assumption], depth - 1, visited);
+        if (subEnd) {
+          return createNDProofNode({
+            formula: goal,
+            reason: "∃E",
+            parent1: existsNode,
+            subAssumption1: assumption,
+            subEnd1: subEnd,
+          });
+        }
+      }
 
       if (goal.type !== FormulaType.Negation && goal.type !== FormulaType.Contradiction) {
         const negGoal = negateFormula(goal);
         const existingAssumption = findLatestAssumptionWithFormula(ctx, negGoal);
         if (existingAssumption) {
-          const contradiction = findProofWithFormula(closure, Formula.createContradiction()) || (() => {
-            const [pos, neg] = findClashWitnessInContext(closure);
-            if (!pos || !neg) return null;
-            return makeContradictionNode(pos, neg);
-          })();
+          const contradiction = tryStructuredContradictionFromContext(closure, depth - 1, visited);
           if (contradiction) {
             return createNDProofNode({
               formula: goal,
@@ -2378,14 +2803,12 @@ P ∧ Q ∧ R ∧ S
       return null;
     }
 
+    function tryDirectProofFromContext(goal, ctx) {
+      return tryStructuredProofFromContext(goal, ctx, STRUCTURED_PROOF_DEPTH_LIMIT, new Set());
+    }
+
     function tryDirectContradictionFromContext(ctx) {
-      if (proofContextContainsQuantifier(ctx)) return null;
-      const closure = deriveContextClosure(ctx, 5);
-      const directContradiction = findProofWithFormula(closure, Formula.createContradiction());
-      if (directContradiction) return directContradiction;
-      const [pos, neg] = findClashWitnessInContext(closure);
-      if (!pos || !neg) return null;
-      return makeContradictionNode(pos, neg);
+      return tryStructuredContradictionFromContext(ctx, STRUCTURED_PROOF_DEPTH_LIMIT, new Set());
     }
 
     function simplifyNDProof(node, ctx) {
@@ -2962,6 +3385,24 @@ P ∧ Q ∧ R ∧ S
       const conclusion = parseSingleFormula(conclusionInput, signature);
 
       const premises = parsedPremises;
+      const rootCtx = [];
+      for (const premise of premises) {
+        rootCtx.push(createNDProofNode({ formula: premise, reason: "Premise" }));
+      }
+
+      const structuredRoot = tryStructuredProofFromContext(conclusion, rootCtx, STRUCTURED_PROOF_DEPTH_LIMIT, new Set());
+      if (structuredRoot) {
+        const fitchLines = buildFitchLines(structuredRoot, rootCtx);
+        const parts = [];
+        parts.push("=== 구문 확인 ===");
+        parts.push(`전제: ${parsedPremises.length > 0 ? parsedPremises.map(formulaToDisplayString).join(", ") : "(없음)"}`);
+        parts.push(`결론: ${formulaToDisplayString(conclusion)}`);
+        parts.push("");
+        parts.push("=== 결과 ===");
+        parts.push("Y");
+        parts.push("");
+        return { text: parts.join("\n"), fitchLines, tree: null };
+      }
 
       const root = createQuestion([...premises], [], conclusion);
       const activeStates = new Set();
@@ -3001,11 +3442,6 @@ P ∧ Q ∧ R ∧ S
 
       if (!tree.success) {
         return { text: parts.join("\n"), fitchLines: null, tree };
-      }
-
-      const rootCtx = [];
-      for (const premise of premises) {
-        rootCtx.push(createNDProofNode({ formula: premise, reason: "Premise" }));
       }
 
       const ndRoot = extractNDProof(tree, rootCtx);
