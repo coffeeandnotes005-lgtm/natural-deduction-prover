@@ -1202,49 +1202,53 @@
       }
       return uniqueTermsPreserveOrder(raw);
     }
-    function deriveContextClosure(ctx, maxRounds = 4) {
-      const known = [];
-      for (const node of ctx || []) {
-        if (node && node.formula) addProofNodeUniqueByFormula(known, node);
+    function deriveContextClosure(ctx, maxRounds = 4, extraTerms = []) {
+  const known = [];
+  for (const node of ctx || []) {
+    if (node && node.formula) addProofNodeUniqueByFormula(known, node);
+  }
+
+  let rounds = 0;
+  let changed = true;
+  while (changed && rounds < maxRounds) {
+    changed = false;
+    rounds += 1;
+    const snapshot = [...known];
+
+    const termCandidates = uniqueTermsPreserveOrder([
+      ...collectTermsFromProofContext(snapshot),
+      ...(extraTerms || []),
+    ]);
+
+    for (const node of snapshot) {
+      const f = node.formula;
+      if (!f) continue;
+
+      if (f.type === FormulaType.Conjunction) {
+        if (f.left) changed = addProofNodeUniqueByFormula(known, makeUnaryNode(f.left, "&E", node)) || changed;
+        if (f.right) changed = addProofNodeUniqueByFormula(known, makeUnaryNode(f.right, "&E", node)) || changed;
       }
 
-      let rounds = 0;
-      let changed = true;
-      while (changed && rounds < maxRounds) {
-        changed = false;
-        rounds += 1;
-        const snapshot = [...known];
-        const termCandidates = collectTermsFromProofContext(snapshot);
-
-        for (const node of snapshot) {
-          const f = node.formula;
-          if (!f) continue;
-
-          if (f.type === FormulaType.Conjunction) {
-            if (f.left) changed = addProofNodeUniqueByFormula(known, makeUnaryNode(f.left, "&E", node)) || changed;
-            if (f.right) changed = addProofNodeUniqueByFormula(known, makeUnaryNode(f.right, "&E", node)) || changed;
-          }
-
-          if (f.type === FormulaType.Universal) {
-            for (const term of termCandidates) {
-              const instantiated = instantiateQuantifiedFormula(f, term);
-              if (!instantiated) continue;
-              changed = addProofNodeUniqueByFormula(known, makeUnaryNode(instantiated, "∀E", node)) || changed;
-            }
-          }
-        }
-
-        const implications = snapshot.filter((node) => node.formula && node.formula.type === FormulaType.Implication);
-        for (const impNode of implications) {
-          const antecedentNode = findProofWithFormula(known, impNode.formula.left);
-          if (!antecedentNode || !impNode.formula.right) continue;
-          const consequentNode = makeBinaryNode(impNode.formula.right, "->E", impNode, antecedentNode);
-          changed = addProofNodeUniqueByFormula(known, consequentNode) || changed;
+      if (f.type === FormulaType.Universal) {
+        for (const term of termCandidates) {
+          const instantiated = instantiateQuantifiedFormula(f, term);
+          if (!instantiated) continue;
+          changed = addProofNodeUniqueByFormula(known, makeUnaryNode(instantiated, "∀E", node)) || changed;
         }
       }
-
-      return known;
     }
+
+    const implications = snapshot.filter((node) => node.formula && node.formula.type === FormulaType.Implication);
+    for (const impNode of implications) {
+      const antecedentNode = findProofWithFormula(known, impNode.formula.left);
+      if (!antecedentNode || !impNode.formula.right) continue;
+      const consequentNode = makeBinaryNode(impNode.formula.right, "->E", impNode, antecedentNode);
+      changed = addProofNodeUniqueByFormula(known, consequentNode) || changed;
+    }
+  }
+
+  return known;
+}
 
     function findLatestAssumptionWithFormula(ctx, targetFormula) {
       for (let i = (ctx || []).length - 1; i >= 0; i--) {
@@ -1565,6 +1569,114 @@
       return null;
     }
 
+function tryGoalDirectedIntroElimProof(goal, ctx, depth = 12, visited = new Set(), extraTerms = []) {
+  if (!goal || depth <= 0) return null;
+
+  const goalTerms = [];
+  collectTermsFromFormula(goal, goalTerms);
+
+  const allExtraTerms = uniqueTermsPreserveOrder([
+    ...(extraTerms || []),
+    ...goalTerms,
+  ]);
+
+  const closure = deriveContextClosure(ctx, 8, allExtraTerms);
+  const direct = findProofWithFormula(closure, goal);
+  if (direct) return direct;
+
+  const stateKey = `GD|${formulaToString(goal)}|${depth}|${contextKey(closure)}|${allExtraTerms.map(termToString).join(",")}`;
+  if (visited.has(stateKey)) return null;
+  visited.add(stateKey);
+
+  if (goal.type === FormulaType.Universal && goal.left) {
+    const fresh = pickFreshExistentialWitnessForProof(closure, goal, goal);
+    if (!fresh) return null;
+
+    const term = Term.createVariable(fresh);
+    const bodyGoal = instantiateQuantifiedFormula(goal, term);
+    if (!bodyGoal) return null;
+
+    const bodyProof = tryGoalDirectedIntroElimProof(
+      bodyGoal,
+      closure,
+      depth - 1,
+      visited,
+      uniqueTermsPreserveOrder([...allExtraTerms, term])
+    );
+
+    if (!bodyProof) return null;
+    return makeUnaryNode(goal, "∀I", bodyProof);
+  }
+
+  if (goal.type === FormulaType.Implication && goal.left && goal.right) {
+    const assumption = makeSimpleNode(goal.left, "Assumption");
+
+    const bodyProof = tryGoalDirectedIntroElimProof(
+      goal.right,
+      [...closure, assumption],
+      depth - 1,
+      visited,
+      allExtraTerms
+    );
+
+    if (!bodyProof) return null;
+
+    return createNDProofNode({
+      formula: goal,
+      reason: "->I",
+      subAssumption1: assumption,
+      subEnd1: bodyProof,
+    });
+  }
+
+  if (goal.type === FormulaType.Conjunction && goal.left && goal.right) {
+    const leftProof = tryGoalDirectedIntroElimProof(goal.left, closure, depth - 1, visited, allExtraTerms);
+    if (!leftProof) return null;
+
+    const rightProof = tryGoalDirectedIntroElimProof(goal.right, closure, depth - 1, visited, allExtraTerms);
+    if (!rightProof) return null;
+
+    return makeBinaryNode(goal, "&I", leftProof, rightProof);
+  }
+
+  for (const impNode of closure) {
+    const imp = impNode && impNode.formula;
+    if (!imp || imp.type !== FormulaType.Implication) continue;
+    if (!imp.left || !imp.right) continue;
+    if (!equalFormula(imp.right, goal)) continue;
+
+    let antecedentProof = null;
+
+    if (imp.left.type === FormulaType.Conjunction && imp.left.left && imp.left.right) {
+      const leftPartProof = findProofWithFormula(closure, imp.left.left)
+        || tryGoalDirectedIntroElimProof(imp.left.left, closure, depth - 1, visited, allExtraTerms);
+
+      const rightPartProof = findProofWithFormula(closure, imp.left.right)
+        || tryGoalDirectedIntroElimProof(imp.left.right, closure, depth - 1, visited, allExtraTerms);
+
+      if (leftPartProof && rightPartProof) {
+        antecedentProof = makeBinaryNode(imp.left, "&I", leftPartProof, rightPartProof);
+      }
+    }
+
+    if (!antecedentProof) {
+      antecedentProof = tryGoalDirectedIntroElimProof(
+        imp.left,
+        closure,
+        depth - 1,
+        visited,
+        allExtraTerms
+      );
+    }
+
+    if (!antecedentProof) continue;
+
+    return makeBinaryNode(goal, "->E", impNode, antecedentProof);
+  }
+
+  return null;
+}
+
     function tryStructuredProofFromContext(goal, ctx, depth = STRUCTURED_PROOF_DEPTH_LIMIT, visited = new Set()) {
       if (!goal || depth <= 0) return null;
       const closure = deriveContextClosure(ctx, 7);
@@ -1671,11 +1783,6 @@
         if (splitProof) return splitProof;
       }
 
-
-      // Goal-directed implication elimination: if some available implication A -> goal
-      // can derive the current goal, recursively prove A as a subgoal.
-      // This is the missing backward step needed for cases like proving Lxe
-      // from (Px ∧ Lxa) -> Lxe together with Px and Lxa.
       for (const impNode of closure) {
         const imp = impNode && impNode.formula;
         if (!imp || imp.type !== FormulaType.Implication || !imp.left || !imp.right) continue;
@@ -2033,6 +2140,24 @@ function solveProofData(premisesInput, conclusionInput, signature) {
   for (const premise of premises) {
     rootCtx.push(createNDProofNode({ formula: premise, reason: "Premise" }));
   }
+
+const goalDirectedRoot = tryGoalDirectedIntroElimProof(conclusion, rootCtx, 12, new Set());
+console.log("goalDirectedRoot =", goalDirectedRoot);
+
+if (goalDirectedRoot) {
+  console.log("goalDirectedRoot formula =", formulaToString(goalDirectedRoot.formula));
+
+  const fitchLines = buildFitchLines(goalDirectedRoot, rootCtx);
+  const parts = [];
+  parts.push("=== 구문 확인 ===");
+  parts.push(`전제: ${parsedPremises.length > 0 ? parsedPremises.map(formulaToDisplayString).join(", ") : "(없음)"}`);
+  parts.push(`결론: ${formulaToDisplayString(conclusion)}`);
+  parts.push("");
+  parts.push("=== 결과 ===");
+  parts.push("Y");
+  parts.push("");
+  return { text: parts.join("\n"), fitchLines, tree: null };
+}
 
   const structuredRoot = tryStructuredProofFromContext(conclusion, rootCtx, STRUCTURED_PROOF_DEPTH_LIMIT, new Set());
   if (structuredRoot) {
