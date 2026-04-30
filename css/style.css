@@ -1,439 +1,572 @@
- :root {
-      --bg-body: #171b34;
-      --text-main: #eef3ff;
-      --panel-bg: #1d2347;
-      --panel-border: #2f5fb8;
-      --info-color: #c7d3ff;
-      --input-bg: #10152d;
-      --input-text: #eef3ff;
-      --input-border: #2f5fb8;
-      --input-focus: #4b8dff;
-      --button-bg: #27315f;
-      --button-bg-hover: #34427d;
-      --button-text: #f4f7ff;
-      --output-bg: #0c1125;
-      --zebra-odd: rgba(255, 255, 255, 0.04);
-      --zebra-even: rgba(255, 255, 255, 0.08);
-      --scope-color: #c7d3ff;
-      --num-color: #c7d3ff;
-      --expr-color: var(--input-text);
-      --reason-color: #c7d3ff;
-      --small-color: #c7d3ff;
-      --error-color: #ffb4b4;
-    }
+/* 전체 사이트에서 공통으로 사용할 기본 색상 변수입니다.
+   현재 :root 값은 다크 테마의 기본값으로 쓰입니다. */
+:root {
+  /* 페이지 전체 배경색 */
+  --bg-body: #171b34;
 
-    
-    body.light-theme {
-      --bg-body: #f4f1e8;
-      --text-main: #222222;
-      --panel-bg: #fffdf8;
-      --panel-border: #cdbf9f;
-      --info-color: #5f5547;
-      --input-bg: #fffefb;
-      --input-text: #222222;
-      --input-border: #bcae8b;
-      --input-focus: #90784d;
-      --button-bg: #efe6d3;
-      --button-bg-hover: #e2d6bf;
-      --button-text: #2d271f;
-      --output-bg: #fffef9;
-      --zebra-odd: rgba(140, 120, 90, 0.06);
-      --zebra-even: rgba(140, 120, 90, 0.12);
-      --scope-color: #5f5547;
-      --num-color: #5f5547;
-      --expr-color: #222222;
-      --reason-color: #5f5547;
-      --small-color: #5f5547;
-      --error-color: #a33a2b;
-    }
+  /* 일반 글자색 */
+  --text-main: #eef3ff;
 
-    
-    body {
-      margin: 0;
-      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
-      background: var(--bg-body);
-      color: var(--text-main);
-      transition: background-color 0.2s ease, color 0.2s ease;
-    }
+  /* 카드/패널 배경색 */
+  --panel-bg: #1d2347;
 
-    
-    .container {
-      max-width: 1000px;
-      margin: 30px auto;
-      padding: 0 16px;
-    }
+  /* 패널 테두리 색 */
+  --panel-border: #2f5fb8;
 
-    
-    .panel {
-      background: var(--panel-bg);
-      transition: background-color 0.2s ease, border-color 0.2s ease;
-      border: 1px solid var(--panel-border);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
+  /* 안내문, 예제 글자색 */
+  --info-color: #c7d3ff;
 
-    .panel h1,
-    .panel h2 {
-      margin-top: 0;
-    }
+  /* textarea/input 배경색 */
+  --input-bg: #10152d;
 
-    .info {
-      color: var(--info-color);
-      line-height: 1.7;
-      white-space: pre-wrap;
-    }
+  /* textarea/input 글자색 */
+  --input-text: #eef3ff;
 
-    label {
-      display: block;
-      font-weight: bold;
-      margin-bottom: 8px;
-      margin-top: 12px;
-    }
+  /* textarea/input 테두리 색 */
+  --input-border: #2f5fb8;
 
-    textarea,
-    input[type="text"] {
-      width: 100%;
-      box-sizing: border-box;
-      background: var(--input-bg);
-      color: var(--input-text);
-      border: 1px solid var(--input-border);
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 16px;
-      outline: none;
-    }
+  /* 입력칸 포커스 테두리 색 */
+  --input-focus: #4b8dff;
 
-    textarea {
-      min-height: 120px;
-      resize: vertical;
-    }
+  /* 버튼 기본 배경색 */
+  --button-bg: #27315f;
 
-    textarea:focus,
-    input[type="text"]:focus {
-      border-color: var(--input-focus);
-    }
+  /* 버튼에 마우스를 올렸을 때 배경색 */
+  --button-bg-hover: #34427d;
 
-    
-    .symbol-buttons {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 14px;
-    }
+  /* 버튼 글자색 */
+  --button-text: #f4f7ff;
 
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      margin-bottom: 10px;
-    }
+  /* 출력창 배경색 */
+  --output-bg: #0c1125;
 
-    .panel-header h1 {
-      margin: 0;
-    }
+  /* 피치 증명 줄 구분 배경색: 홀수 줄 */
+  --zebra-odd: rgba(255, 255, 255, 0.04);
 
-    .action-buttons {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 14px;
-      align-items: center;
-    }
+  /* 피치 증명 줄 구분 배경색: 짝수 줄 */
+  --zebra-even: rgba(255, 255, 255, 0.08);
 
-    .action-spacer {
-      margin-left: auto;
-    }
+  /* 피치 증명 scope 선 색 */
+  --scope-color: #c7d3ff;
 
-    button {
-      background: var(--button-bg);
-      color: var(--button-text);
-      border: 1px solid var(--panel-border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 15px;
-      cursor: pointer;
-    }
+  /* 피치 증명 줄 번호 색 */
+  --num-color: #c7d3ff;
 
-    button:hover {
-      background: var(--button-bg-hover);
-    }
+  /* 피치 증명 식 글자색 */
+  --expr-color: var(--input-text);
 
-    
-    .output {
-      background: var(--output-bg);
-      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-      border: 1px solid var(--input-border);
-      border-radius: 8px;
-      padding: 12px;
-      min-height: 180px;
-      font-family: Consolas, "Courier New", monospace;
-      line-height: 1.6;
-      overflow-x: auto;
-    }
+  /* 피치 증명 규칙/근거 글자색 */
+  --reason-color: #c7d3ff;
 
-    .output-footer {
-      display: flex;
-      width: 100%;
-      justify-content: flex-end;
-      margin-top: 12px;
-    }
+  /* 작은 안내문 글자색 */
+  --small-color: #c7d3ff;
 
-    .output-footer #stripeToggleBtn {
-      margin-left: auto;
-      flex: 0 0 auto;
-    }
-
-    .plain-result {
-      white-space: pre-wrap;
-    }
-
-    .fitch-result {
-      white-space: pre-wrap;
-      margin-bottom: 10px;
-    }
-
-    
-    .fitch-proof {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    
-    .fitch-line {
-      display: grid;
-      grid-template-columns: max-content minmax(0, 1fr);
-      column-gap: 12px;
-      align-items: stretch;
-    }
-
-    .fitch-proof.zebra-on .fitch-line:nth-child(odd) .fitch-main {
-      background: var(--zebra-odd);
-      border-radius: 4px;
-    }
-
-    .fitch-proof.zebra-on .fitch-line:nth-child(even) .fitch-main {
-      background: var(--zebra-even);
-      border-radius: 4px;
-    }
-
-    .fitch-line.premise-divider .fitch-main {
-      position: relative;
-    }
-
-    .fitch-line.premise-divider .fitch-main::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      width: 64px;
-      border-top: 2px solid var(--scope-color);
-    }
-
-    .fitch-num {
-      min-width: 2ch;
-      text-align: right;
-      color: var(--num-color);
-      padding-top: 1px;
-    }
-
-    .fitch-main {
-      display: flex;
-      align-items: stretch;
-      min-height: 1.6em;
-      min-width: 0;
-    }
-
-    .fitch-content {
-      flex: 1;
-      min-width: 0;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) max-content;
-      column-gap: 12px;
-      align-items: stretch;
-      padding: 0 4px 0 0;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
+  /* 오류 메시지 글자색 */
+  --error-color: #ffb4b4;
+}
 
 
-    .fitch-formula-body {
-      display: flex;
-      align-items: center;
-      min-height: 1.6em;
-      min-width: 0;
-      box-sizing: border-box;
-    }
-
-    
-    .fitch-scope {
-      position: relative;
-      width: 18px;
-      min-width: 18px;
-      border-left: 2px solid var(--scope-color);
-      margin-right: 10px;
-      align-self: stretch;
-      box-sizing: border-box;
-    }
-
-    .fitch-scope.scope-last {
-      width: 4px;
-      min-width: 4px;
-      margin-right: 2px;
-    }
-
-    .fitch-scope.scope-start,
-    .fitch-scope.scope-branch-end {
-      border-left: none;
-    }
-
-    .fitch-scope.scope-start {
-      background-image: linear-gradient(var(--scope-color), var(--scope-color));
-      background-repeat: no-repeat;
-      background-size: 2px calc(100% - 0.72em);
-      background-position: left top 0.72em;
-    }
-
-    .fitch-scope.scope-branch-end::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      top: 0;
-      bottom: 0.72em;
-      border-left: 2px solid var(--scope-color);
-    }
-
-    .fitch-scope.scope-start.scope-branch-end {
-      background-size: 2px calc(100% - 1.44em);
-    }
-
-    .fitch-scope.scope-start.scope-branch-end::before {
-      content: none;
-    }
-
-    .fitch-scope.scope-open::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      width: 64px;
-      border-top: 2px solid var(--scope-color);
-    }
-
-    .fitch-scope.scope-close::after {
-      content: "";
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      width: 64px;
-      border-top: 2px solid var(--scope-color);
-    }
-
-    .fitch-expr {
-      white-space: pre;
-      color: var(--input-text);
-    }
-
-    .fitch-expr-chip,
-    .fitch-reason-chip {
-      display: inline-flex;
-      align-items: center;
-      min-height: 1.6em;
-      padding: 0 8px;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-
-    .fitch-reason {
-      display: flex;
-      align-items: center;
-      white-space: pre;
-      color: var(--reason-color);
-      min-height: 1.6em;
-      box-sizing: border-box;
-    }
+/* body에 light-theme 클래스가 붙었을 때 적용되는 라이트 테마 색상입니다.
+   main.js에서 버튼 클릭 시 body.light-theme을 켜고 끕니다. */
+body.light-theme {
+  --bg-body: #f4f1e8;
+  --text-main: #222222;
+  --panel-bg: #fffdf8;
+  --panel-border: #cdbf9f;
+  --info-color: #5f5547;
+  --input-bg: #fffefb;
+  --input-text: #222222;
+  --input-border: #bcae8b;
+  --input-focus: #90784d;
+  --button-bg: #efe6d3;
+  --button-bg-hover: #e2d6bf;
+  --button-text: #2d271f;
+  --output-bg: #fffef9;
+  --zebra-odd: rgba(140, 120, 90, 0.06);
+  --zebra-even: rgba(140, 120, 90, 0.12);
+  --scope-color: #5f5547;
+  --num-color: #5f5547;
+  --expr-color: #222222;
+  --reason-color: #5f5547;
+  --small-color: #5f5547;
+  --error-color: #a33a2b;
+}
 
 
-    .signature-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-      margin-top: 14px;
-    }
+/* 페이지 전체 기본 스타일입니다. */
+body {
+  /* 브라우저 기본 여백 제거 */
+  margin: 0;
 
-    .signature-card {
-      background: #141a37;
-      border: 1px solid #2a4d94;
-      border-radius: 10px;
-      padding: 12px;
-    }
+  /* 한글 표시용 기본 폰트 */
+  font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
 
-    .signature-card label {
-      margin-top: 0;
-      margin-bottom: 6px;
-      font-size: 14px;
-    }
+  /* 테마 변수에 따라 배경색 적용 */
+  background: var(--bg-body);
 
-    .signature-card input[type="text"] {
-      padding: 10px;
-      font-size: 15px;
-    }
+  /* 테마 변수에 따라 글자색 적용 */
+  color: var(--text-main);
 
-    .signature-help {
-      margin-top: 12px;
-      color: var(--small-color);
-      font-size: 13px;
-      line-height: 1.6;
-      white-space: pre-wrap;
-    }
+  /* 테마 변경 시 색이 부드럽게 바뀌도록 설정 */
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
 
-    
-    .help-box {
-      margin-top: 16px;
-      background: var(--output-bg);
-      border: 1px solid var(--panel-border);
-      border-radius: 10px;
-      padding: 12px;
-      color: var(--info-color);
-      font-size: 14px;
-      line-height: 1.7;
-      white-space: pre-wrap;
-    }
 
-    .small {
-      color: var(--small-color);
-      font-size: 14px;
-      margin-top: 8px;
-    }
+/* 페이지 내용을 가운데 정렬하고 최대 폭을 제한하는 컨테이너입니다. */
+.container {
+  max-width: 1000px;
+  margin: 30px auto;
+  padding: 0 16px;
+}
 
-    .error {
-      color: var(--error-color);
-    }
 
-    .top-layout {
-      display: grid;
-      grid-template-columns: 330px minmax(0, 1fr);
-      gap: 16px;
-      align-items: start;
-    }
+/* 일반 패널 박스입니다.
+   입력 영역, 출력 영역, 도움말 영역, rule 영역에 공통으로 사용됩니다. */
+.panel {
+  background: var(--panel-bg);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
 
-    .example-panel {
-      background: var(--panel-bg);
-      border: 1px solid var(--panel-border);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 16px;
-      white-space: pre-line;
-      font-size: 14px;
-      line-height: 1.6;
-      color: var(--info-color);
-      box-sizing: border-box;
-    }
+/* 패널 안 제목의 위쪽 기본 여백을 제거합니다. */
+.panel h1,
+.panel h2 {
+  margin-top: 0;
+}
 
-    @media (max-width: 900px) {
-      .top-layout {
-        grid-template-columns: 1fr;
-      }
-    }
+/* 안내문 스타일입니다. */
+.info {
+  color: var(--info-color);
+  line-height: 1.7;
+
+  /* 줄바꿈과 연속 공백을 어느 정도 유지합니다. */
+  white-space: pre-wrap;
+}
+
+/* 입력칸 위의 label 스타일입니다. */
+label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 8px;
+  margin-top: 12px;
+}
+
+/* textarea와 text input 공통 스타일입니다. */
+textarea,
+input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 16px;
+
+  /* 브라우저 기본 focus outline 제거 */
+  outline: none;
+}
+
+/* textarea 전용 스타일입니다. */
+textarea {
+  min-height: 120px;
+
+  /* 사용자가 세로 방향으로 크기 조절 가능 */
+  resize: vertical;
+}
+
+/* 입력칸이 선택되었을 때 테두리 색입니다. */
+textarea:focus,
+input[type="text"]:focus {
+  border-color: var(--input-focus);
+}
+
+
+/* 논리 기호 버튼들을 가로로 배치합니다. */
+.symbol-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+/* 제목 줄 배치입니다. */
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+/* 제목 자체의 기본 여백 제거 */
+.panel-header h1 {
+  margin: 0;
+}
+
+/* Proof 버튼과 모두 지우기 버튼을 담는 영역입니다. */
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  align-items: center;
+}
+
+/* 버튼 사이에 강제로 빈 공간을 만들 때 쓰는 보조 클래스입니다. */
+.action-spacer {
+  margin-left: auto;
+}
+
+/* 모든 버튼의 기본 스타일입니다. */
+button {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+/* 버튼에 마우스를 올렸을 때 스타일입니다. */
+button:hover {
+  background: var(--button-bg-hover);
+}
+
+
+/* 출력창 스타일입니다. */
+.output {
+  background: var(--output-bg);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 180px;
+
+  /* 증명 출력은 고정폭 폰트가 보기 좋으므로 monospace 사용 */
+  font-family: Consolas, "Courier New", monospace;
+
+  line-height: 1.6;
+
+  /* 증명이 가로로 길어질 때 가로 스크롤 허용 */
+  overflow-x: auto;
+}
+
+/* 출력창 아래쪽 버튼 영역입니다. */
+.output-footer {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+/* 줄 구분 버튼을 오른쪽 끝에 붙입니다. */
+.output-footer #stripeToggleBtn {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* 일반 텍스트 결과 출력 시 줄바꿈 유지 */
+.plain-result {
+  white-space: pre-wrap;
+}
+
+/* 텍스트 방식 피치 결과용 클래스입니다. */
+.fitch-result {
+  white-space: pre-wrap;
+  margin-bottom: 10px;
+}
+
+
+/* 피치 증명 전체를 감싸는 영역입니다. */
+.fitch-proof {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+
+/* 피치 증명 한 줄입니다.
+   왼쪽은 줄 번호, 오른쪽은 식과 규칙입니다. */
+.fitch-line {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: stretch;
+}
+
+/* 줄 구분이 켜져 있을 때 홀수 줄 배경 */
+.fitch-proof.zebra-on .fitch-line:nth-child(odd) .fitch-main {
+  background: var(--zebra-odd);
+  border-radius: 4px;
+}
+
+/* 줄 구분이 켜져 있을 때 짝수 줄 배경 */
+.fitch-proof.zebra-on .fitch-line:nth-child(even) .fitch-main {
+  background: var(--zebra-even);
+  border-radius: 4px;
+}
+
+/* 전제 마지막 줄 아래에 가로선을 그리기 위한 기준 위치 설정 */
+.fitch-line.premise-divider .fitch-main {
+  position: relative;
+}
+
+/* 전제 구역 끝을 표시하는 가로선입니다. */
+.fitch-line.premise-divider .fitch-main::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 64px;
+  border-top: 2px solid var(--scope-color);
+}
+
+/* 피치 증명 줄 번호 스타일입니다. */
+.fitch-num {
+  min-width: 2ch;
+  text-align: right;
+  color: var(--num-color);
+  padding-top: 1px;
+}
+
+/* 줄 번호를 제외한 피치 증명 본문 영역입니다. */
+.fitch-main {
+  display: flex;
+  align-items: stretch;
+  min-height: 1.6em;
+  min-width: 0;
+}
+
+/* 식 영역과 규칙 영역을 나누는 컨테이너입니다. */
+.fitch-content {
+  flex: 1;
+  min-width: 0;
+
+  /* 왼쪽은 식, 오른쪽은 규칙 */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  column-gap: 12px;
+  align-items: stretch;
+
+  padding: 0 4px 0 0;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+
+/* 피치 증명 식 부분입니다. */
+.fitch-formula-body {
+  display: flex;
+  align-items: center;
+  min-height: 1.6em;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+
+/* 피치 증명의 세로 scope 선입니다.
+   가정 박스의 깊이를 표시합니다. */
+.fitch-scope {
+  position: relative;
+  width: 18px;
+  min-width: 18px;
+  border-left: 2px solid var(--scope-color);
+  margin-right: 10px;
+  align-self: stretch;
+  box-sizing: border-box;
+}
+
+/* 가장 안쪽 scope 칸은 좁게 만들어 식과 너무 멀어지지 않게 합니다. */
+.fitch-scope.scope-last {
+  width: 4px;
+  min-width: 4px;
+  margin-right: 2px;
+}
+
+/* 가정 시작 줄과 ∨E 가지 끝 줄은 기본 세로선을 제거하고 별도 방식으로 그립니다. */
+.fitch-scope.scope-start,
+.fitch-scope.scope-branch-end {
+  border-left: none;
+}
+
+/* 가정이 시작되는 줄의 세로선입니다.
+   위쪽 일부를 비워서 피치 박스 시작 모양을 만듭니다. */
+.fitch-scope.scope-start {
+  background-image: linear-gradient(var(--scope-color), var(--scope-color));
+  background-repeat: no-repeat;
+  background-size: 2px calc(100% - 0.72em);
+  background-position: left top 0.72em;
+}
+
+/* ∨E 가지가 끝나는 줄에서 세로선이 식 가운데까지 내려오지 않도록 조정합니다. */
+.fitch-scope.scope-branch-end::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0.72em;
+  border-left: 2px solid var(--scope-color);
+}
+
+/* 가정 시작과 가지 끝이 같은 줄에 겹칠 때 세로선 길이를 조정합니다. */
+.fitch-scope.scope-start.scope-branch-end {
+  background-size: 2px calc(100% - 1.44em);
+}
+
+/* 위 경우에는 before 선을 제거합니다. */
+.fitch-scope.scope-start.scope-branch-end::before {
+  content: none;
+}
+
+/* 가정이 시작되는 줄의 가로선입니다. */
+.fitch-scope.scope-open::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 64px;
+  border-top: 2px solid var(--scope-color);
+}
+
+/* 가정 박스가 닫히는 줄의 가로선입니다. */
+.fitch-scope.scope-close::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 64px;
+  border-top: 2px solid var(--scope-color);
+}
+
+/* 피치 증명 식 텍스트입니다. */
+.fitch-expr {
+  white-space: pre;
+  color: var(--input-text);
+}
+
+/* 식과 규칙을 감싸는 작은 칩 형태의 영역입니다. */
+.fitch-expr-chip,
+.fitch-reason-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.6em;
+  padding: 0 8px;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* 규칙/근거 표시 영역입니다. 예: →I 2-4, ∧E 1 */
+.fitch-reason {
+  display: flex;
+  align-items: center;
+  white-space: pre;
+  color: var(--reason-color);
+  min-height: 1.6em;
+  box-sizing: border-box;
+}
+
+
+/* 서명 입력 카드들을 배치하기 위한 그리드입니다.
+   현재 HTML에서는 사용하지 않을 수도 있지만, 남겨두면 나중에 확장 가능합니다. */
+.signature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+/* 서명 입력 카드 하나의 스타일입니다. */
+.signature-card {
+  background: #141a37;
+  border: 1px solid #2a4d94;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+/* 서명 카드 안 label 스타일입니다. */
+.signature-card label {
+  margin-top: 0;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+/* 서명 카드 안 입력칸 스타일입니다. */
+.signature-card input[type="text"] {
+  padding: 10px;
+  font-size: 15px;
+}
+
+/* 서명 관련 도움말 스타일입니다. */
+.signature-help {
+  margin-top: 12px;
+  color: var(--small-color);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+
+/* 사용법 안내 박스입니다. */
+.help-box {
+  margin-top: 16px;
+  background: var(--output-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 12px;
+  color: var(--info-color);
+  font-size: 14px;
+  line-height: 1.7;
+
+  /* 안내문 안의 줄바꿈을 유지합니다. */
+  white-space: pre-wrap;
+}
+
+/* 작은 보조 문구입니다. */
+.small {
+  color: var(--small-color);
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+/* 오류 상태일 때 글자색입니다. */
+.error {
+  color: var(--error-color);
+}
+
+/* 상단 레이아웃입니다.
+   왼쪽 예제 패널 330px, 오른쪽 입력 패널은 남은 공간을 차지합니다. */
+.top-layout {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+/* 왼쪽 예제 패널 스타일입니다. */
+.example-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+
+  /* 예제 목록의 줄바꿈을 화면에 반영합니다. */
+  white-space: pre-line;
+
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--info-color);
+  box-sizing: border-box;
+}
+
+/* 화면 폭이 900px 이하일 때는 예제 패널과 입력 패널을 세로로 쌓습니다. */
+@media (max-width: 900px) {
+  .top-layout {
+    grid-template-columns: 1fr;
+  }
+}
