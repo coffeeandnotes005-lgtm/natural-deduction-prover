@@ -1,152 +1,81 @@
-// IC Tree에서 사용할 규칙 이름들을 한곳에 모아둔 객체.
-// 문자열을 직접 여러 번 쓰면 오타가 나기 쉬우므로,
-// ICRule.AndUp 같은 식으로 참조하기 위해 만든다.
+
 const ICRule = {
-  // 더 이상 분해할 필요 없이 목표가 이미 확보된 경우.
   Leaf: "Leaf",
-
-  // α/β 안에 A와 ¬A가 같이 있어서 모순이 생긴 경우.
   Clash: "Clash",
-
-  // 직접 모순이 없을 때, 어떤 φ와 ¬φ를 각각 증명해서 ⊥를 만들려는 탐색 규칙.
   ContradSearch: "ContradSearch",
-
-  // 아래 방향 규칙: 이미 가진 conjunction A∧B에서 왼쪽 A를 꺼내는 규칙.
   AndDown1: "AndDown1",
-
-  // 아래 방향 규칙: 이미 가진 conjunction A∧B에서 오른쪽 B를 꺼내는 규칙.
   AndDown2: "AndDown2",
-
-  // 아래 방향 규칙: 이미 가진 disjunction A∨B를 경우분석하는 규칙.
   OrDown: "OrDown",
-
-  // 아래 방향 규칙: 이미 가진 implication A→B와 A 증명을 이용해 B를 얻는 규칙.
   ImpDown: "ImpDown",
-
-  // 위 방향 규칙: 목표가 A∧B일 때 A와 B를 각각 증명하는 규칙.
   AndUp: "AndUp",
-
-  // 위 방향 규칙: 목표가 A∨B일 때 왼쪽 A를 증명해서 A∨B를 얻는 규칙.
   OrUp1: "OrUp1",
-
-  // 위 방향 규칙: 목표가 A∨B일 때 오른쪽 B를 증명해서 A∨B를 얻는 규칙.
   OrUp2: "OrUp2",
-
-  // 위 방향 규칙: 목표가 A→B일 때 A를 가정하고 B를 증명하는 규칙.
   ImpUp: "ImpUp",
-
-  // 위 방향 규칙: 목표가 ¬A일 때 A를 가정하고 모순을 증명하는 규칙.
   NegUp: "NegUp",
-
-  // 고전논리 규칙: 목표 G를 증명하기 위해 ¬G를 가정하고 모순을 만드는 규칙.
   ClassicalUp: "ClassicalUp",
-
-  // 아래 방향 규칙: ∀xA에서 특정 항 t를 넣어 A[t/x]를 얻는 규칙.
   ForallDown: "ForallDown",
-
-  // 아래 방향 규칙: ∃xA에서 새 증인 변수를 가정해 A[w/x]로 진행하는 규칙.
   ExistsDown: "ExistsDown",
-
-  // 위 방향 규칙: 목표가 ∀xA일 때 새 변수 w에 대해 A[w/x]를 증명하는 규칙.
   ForallUp: "ForallUp",
-
-  // 위 방향 규칙: 목표가 ∃xA일 때 어떤 항 t에 대해 A[t/x]를 증명하는 규칙.
   ExistsUp: "ExistsUp",
-
-  // 해당 질문에서 증명 탐색이 실패했음을 표시하는 규칙.
   Fail: "Fail",
 };
 
-// 자연연역 proof node마다 고유 id를 붙이기 위한 전역 카운터.
-// createNDProofNode가 호출될 때마다 하나씩 증가한다.
 let nextNodeId = 1;
 
-// 주어진 공식 f의 부정 ¬f를 만든다.
 function negateFormula(f) {
   return Formula.createNegation(f);
 }
 
-// 공식 f 안에 들어 있는 모든 부분공식을 out 배열에 모은다.
-// 이미 들어간 공식은 중복해서 넣지 않는다.
 function collectSubformulas(f, out) {
-  // 공식이 없으면 처리하지 않는다.
+
   if (!f) return;
-
-  // 같은 공식이 이미 out에 있으면 중복 수집을 막는다.
   if (containsFormula(out, f)) return;
-
-  // 현재 공식 자체도 부분공식으로 포함한다.
   out.push(f);
 
-  // ¬A이면 A 내부를 계속 탐색한다.
   if (f.type === FormulaType.Negation) {
     collectSubformulas(f.left, out);
-
-  // A∧B, A∨B, A→B이면 왼쪽과 오른쪽을 모두 탐색한다.
   } else if ([FormulaType.Conjunction, FormulaType.Disjunction, FormulaType.Implication].includes(f.type)) {
     collectSubformulas(f.left, out);
     collectSubformulas(f.right, out);
 
-  // ∀xA, ∃xA이면 몸통 A를 탐색한다.
   } else if ([FormulaType.Universal, FormulaType.Existential].includes(f.type)) {
     collectSubformulas(f.left, out);
   }
 }
 
-// 항 term을 복사해서 새 객체로 만든다.
-// 원본 객체를 그대로 공유하지 않게 하려는 용도다.
 function cloneTerm(term) {
-  // 항이 없으면 null 반환.
   if (!term) return null;
-
-  // 변수항이면 같은 symbol을 가진 새 변수항 생성.
   if (term.type === TermType.Variable) return Term.createVariable(term.symbol);
-
-  // 상항이면 같은 symbol을 가진 새 상항 생성.
   if (term.type === TermType.Constant) return Term.createConstant(term.symbol);
-
-  // 현재 구조에서는 변수/상항만 쓰므로, 예외적 경우는 상항처럼 복사한다.
   return Term.createConstant(term.symbol);
 }
 
-// 공식 formula를 깊은 복사한다.
-// 내부의 항과 하위 공식까지 새 객체로 다시 만든다.
 function cloneFormula(formula) {
-  // 공식이 없으면 null 반환.
   if (!formula) return null;
-
-  // 명제문자 A, B, C 같은 경우.
   if (formula.type === FormulaType.SentenceLetter) {
     return Formula.createSentenceLetter(formula.symbol);
   }
 
-  // 술어식 Px, Rab 같은 경우.
-  // args도 각각 cloneTerm으로 복사한다.
   if (formula.type === FormulaType.Predicate) {
     return Formula.createPredicate(formula.symbol, (formula.args || []).map(cloneTerm));
   }
 
-  // 모순기호 ⊥.
   if (formula.type === FormulaType.Contradiction) {
     return Formula.createContradiction();
   }
 
-  // 부정 ¬A.
   if (formula.type === FormulaType.Negation) {
     return Formula.createNegation(cloneFormula(formula.left));
   }
 
-  // 보편양화 ∀xA.
   if (formula.type === FormulaType.Universal) {
     return Formula.createUniversal(formula.variable, cloneFormula(formula.left));
   }
 
-  // 존재양화 ∃xA.
   if (formula.type === FormulaType.Existential) {
     return Formula.createExistential(formula.variable, cloneFormula(formula.left));
   }
 
-  // 나머지는 이항연결사 A∧B, A∨B, A→B로 보고 복사한다.
   return Formula.createBinary(
     formula.type,
     cloneFormula(formula.left),
@@ -154,68 +83,47 @@ function cloneFormula(formula) {
   );
 }
 
-// 하나의 항 term 안에 등장하는 항들을 out에 모은다.
-// 현재는 함수기호를 거의 쓰지 않지만, args가 있을 경우까지 대비해 재귀 처리한다.
 function collectTermsFromTerm(term, out) {
-  // 항이 없으면 처리하지 않는다.
   if (!term) return;
-
-  // 현재 항 자체를 복사해서 넣는다.
   out.push(cloneTerm(term));
-
-  // 항 안에 하위 항들이 있으면 그것들도 수집한다.
   for (const arg of term.args || []) {
     collectTermsFromTerm(arg, out);
   }
 }
 
-// 공식 formula 안에 등장하는 항들을 out에 모은다.
-// 예: Pxa 안에서는 x, a를 모은다.
 function collectTermsFromFormula(formula, out) {
-  // 공식이 없으면 처리하지 않는다.
   if (!formula) return;
-
-  // 술어식이면 그 인자항들을 수집한다.
   if (formula.type === FormulaType.Predicate) {
     for (const arg of formula.args || []) {
       collectTermsFromTerm(arg, out);
     }
     return;
   }
-
-  // 부정식이면 내부 공식만 보면 된다.
+  
   if (formula.type === FormulaType.Negation) {
     collectTermsFromFormula(formula.left, out);
     return;
   }
 
-  // 이항연결사이면 왼쪽/오른쪽 모두 확인한다.
   if ([FormulaType.Conjunction, FormulaType.Disjunction, FormulaType.Implication].includes(formula.type)) {
     collectTermsFromFormula(formula.left, out);
     collectTermsFromFormula(formula.right, out);
     return;
   }
 
-  // 양화식이면 몸통 공식 안의 항들을 확인한다.
   if ([FormulaType.Universal, FormulaType.Existential].includes(formula.type)) {
     collectTermsFromFormula(formula.left, out);
   }
 }
 
-// 항 배열에서 중복을 제거하되, 처음 등장한 순서는 유지한다.
-// termToString(term)을 기준으로 같은 항인지 판단한다.
 function uniqueTermsPreserveOrder(terms) {
   const seen = new Set();
   const out = [];
 
   for (const term of terms) {
-    // 항을 문자열 key로 바꿔 중복 여부를 확인한다.
     const key = termToString(term);
 
-    // 이미 본 항이면 건너뛴다.
     if (seen.has(key)) continue;
-
-    // 처음 보는 항이면 기록하고 결과에 추가한다.
     seen.add(key);
     out.push(term);
   }
@@ -223,29 +131,21 @@ function uniqueTermsPreserveOrder(terms) {
   return out;
 }
 
-// 현재 질문 q에서 사용할 수 있는 항 후보들을 모은다.
-// 주로 ∀ 제거, ∃ 도입에서 어떤 항을 넣어볼지 정할 때 사용된다.
 function collectQuestionTerms(q, extraFormula = null, extraTerm = null) {
   const raw = [];
 
-  // alpha 쪽 공식들에서 항 수집.
   for (const f of q.alpha) {
     collectTermsFromFormula(f, raw);
   }
 
-  // beta 쪽 공식들에서 항 수집.
   for (const f of q.beta) {
     collectTermsFromFormula(f, raw);
   }
 
-  // 현재 목표 공식에서도 항 수집.
   collectTermsFromFormula(q.goal, raw);
 
-  // 추가로 넘겨받은 공식에서도 항 수집.
   collectTermsFromFormula(extraFormula, raw);
 
-  // 추가 공식이 양화식이면 그 바인딩 변수도 후보항으로 넣는다.
-  // 예: ∀xFx라면 x를 후보로 넣어 Fx를 시도할 수 있게 한다.
   if (
     extraFormula &&
     [FormulaType.Universal, FormulaType.Existential].includes(extraFormula.type) &&
@@ -254,29 +154,22 @@ function collectQuestionTerms(q, extraFormula = null, extraTerm = null) {
     raw.push(Term.createVariable(extraFormula.variable));
   }
 
-  // 별도로 추가 항이 주어졌으면 그것도 후보에 넣는다.
   if (extraTerm) {
     raw.push(cloneTerm(extraTerm));
   }
 
-  // 중복을 제거하고 순서를 유지해서 반환한다.
   return uniqueTermsPreserveOrder(raw);
 }
 
-// 열린 전제/가정에 자유롭게 등장하는 변수항을 모은다.
-// ∀ 제거, ∃ 도입에서 이런 변수항을 함부로 쓰면
-// 전제에 의존한 특수한 변수를 일반 항처럼 사용하게 되어 잘못된 증명이 생길 수 있다.
 function collectOpenFreeVariableSymbols(q) {
   const blocked = new Set();
 
-  // alpha는 현재 열린 가정/전제 쪽 공식들이다.
   for (const formula of q.alpha || []) {
     for (const v of freeVariablesOfFormula(formula)) {
       blocked.add(v);
     }
   }
 
-  // beta도 현재 사용 가능한 공식들이므로 같이 막는다.
   for (const formula of q.beta || []) {
     for (const v of freeVariablesOfFormula(formula)) {
       blocked.add(v);
@@ -286,8 +179,6 @@ function collectOpenFreeVariableSymbols(q) {
   return blocked;
 }
 
-// ∀ 제거, ∃ 도입에서 사용할 안전한 항 후보만 남긴다.
-// 상항은 허용하고, 열린 전제/가정에 자유롭게 등장한 변수항은 제외한다.
 function collectSafeInstantiationTerms(q, extraFormula = null, extraTerm = null) {
   const terms = collectQuestionTerms(q, extraFormula, extraTerm);
   const blockedVars = collectOpenFreeVariableSymbols(q);
@@ -295,10 +186,8 @@ function collectSafeInstantiationTerms(q, extraFormula = null, extraTerm = null)
   return terms.filter((term) => {
     if (!term) return false;
 
-    // 상항 a, b, c ... 는 안전하게 허용한다.
     if (term.type === TermType.Constant) return true;
 
-    // 변수항 u, v, w, x, y, z ... 는 열린 전제/가정의 자유변수이면 제외한다.
     if (term.type === TermType.Variable) {
       return !blockedVars.has(term.symbol);
     }
@@ -307,30 +196,23 @@ function collectSafeInstantiationTerms(q, extraFormula = null, extraTerm = null)
   });
 }
 
-// 하나의 항 term 안에 등장하는 변수 symbol들을 out Set에 모은다.
 function collectVariableSymbolsFromTerm(term, out) {
-  // 항이 없으면 처리하지 않는다.
+
   if (!term) return;
 
-  // 변수항이면 그 변수 이름을 Set에 추가한다.
   if (term.type === TermType.Variable) {
     out.add(term.symbol);
   }
 
-  // 하위 항들이 있으면 그 안의 변수들도 수집한다.
   for (const arg of term.args || []) {
     collectVariableSymbolsFromTerm(arg, out);
   }
 }
 
-// 공식 formula 안에 등장하는 모든 변수 기호를 out Set에 모은다.
-// 여기서는 자유변수/속박변수를 구분하지 않고, 그냥 등장한 변수 이름을 전부 모은다.
 function collectVariableSymbolsFromFormula(formula, out) {
-  // 공식이 없으면 아무것도 하지 않는다.
+
   if (!formula) return;
 
-  // 양화식이면 formula.variable에 바인딩 변수가 들어 있다.
-  // 예: ∀xFx 에서는 x를 기록한다.
   if (formula.variable) out.add(formula.variable);
 
   // 술어식이면 그 안의 항들을 확인한다.
@@ -2280,19 +2162,14 @@ function solveProofData(premisesInput, conclusionInput, signature) {
   // IC Tree 출력용 텍스트 배열.
   const parts = [];
 
-  // 구문 확인 영역.
   parts.push("=== 구문 확인 ===");
 
-  // 전제 표시.
   parts.push(`전제: ${parsedPremises.length > 0 ? parsedPremises.map(formulaToDisplayString).join(", ") : "(없음)"}`);
 
-  // 결론 표시.
   parts.push(`결론: ${formulaToDisplayString(conclusion)}`);
 
-  // 빈 줄.
   parts.push("");
 
-  // IC Tree를 텍스트로 변환해 넣는다.
   parts.push("=== IC Tree ===");
 
    if (tree.meta && tree.meta.fullTree) {
@@ -2301,204 +2178,128 @@ function solveProofData(premisesInput, conclusionInput, signature) {
      parts.push(renderICTreeText(tree));
 }
 
-  // 빈 줄.
   parts.push("");
 
-  // 결과 영역.
   parts.push("=== 결과 ===");
 
-  // tree.success에 따라 Y 또는 N을 출력한다.
   parts.push(tree.success ? "Y" : "N");
 
-  // 빈 줄.
   parts.push("");
 
-  // IC Tree 탐색이 실패한 경우.
   if (!tree.success) {
     return { text: parts.join("\n"), fitchLines: null, tree };
   }
 
-  // IC Tree 성공 결과를 자연연역 proof node로 변환한다.
   const ndRoot = extractNDProof(tree, rootCtx);
 
-  // 변환에 실패한 경우.
   if (!ndRoot) {
     parts.push("추출 실패");
     return { text: parts.join("\n"), fitchLines: null, tree };
   }
 
-  // 최종 proof node를 Fitch 출력 줄들로 변환한다.
   const fitchLines = buildFitchLines(ndRoot, rootCtx);
 
-  // 최종 결과 객체 반환.
   return { text: parts.join("\n"), fitchLines, tree };
 }
 
-// 전제 입력 textarea 요소.
 const premisesEl = document.getElementById("premises");
 
-// 결론 입력 textarea 요소.
 const conclusionEl = document.getElementById("conclusion");
 
-// 출력 영역 요소.
 const outputEl = document.getElementById("output");
 
-// Proof 버튼 요소.
 const proofBtn = document.getElementById("proofBtn");
 
-// 모두 지우기 버튼 요소.
 const clearBtn = document.getElementById("clearBtn");
 
-// 줄 구분 켜기/끄기 버튼 요소.
 const stripeToggleBtn = document.getElementById("stripeToggleBtn");
 
-// 테마 전환 버튼 요소.
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 
-// 논리기호 입력 버튼들.
 const symbolButtons = document.querySelectorAll("[data-symbol]");
 
-// 마지막으로 포커스된 입력칸.
-// 기호 버튼을 눌렀을 때 어디에 삽입할지 정하는 데 쓴다.
 let lastFocused = premisesEl;
 
-// Fitch 출력의 줄무늬 표시 여부.
 let zebraStripingEnabled = true;
 
-// renderer 쪽에서도 접근할 수 있게 window에 저장한다.
+
 window.zebraStripingEnabled = zebraStripingEnabled;
 
-// 현재 라이트 테마 사용 여부.
 let lightThemeEnabled = true;
 
-// 전제 입력칸에 포커스가 가면 마지막 포커스 대상을 전제칸으로 기록한다.
 premisesEl.addEventListener("focus", () => {
   lastFocused = premisesEl;
 });
 
-// 결론 입력칸에 포커스가 가면 마지막 포커스 대상을 결론칸으로 기록한다.
 conclusionEl.addEventListener("focus", () => {
   lastFocused = conclusionEl;
 });
 
-// 모든 기호 버튼에 클릭 이벤트를 붙인다.
 symbolButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    // 버튼의 data-symbol 값을 읽는다.
     const symbol = button.getAttribute("data-symbol");
-
-    // 마지막으로 포커스된 입력칸에 넣는다.
-    // 기록이 없으면 전제 입력칸에 넣는다.
     const target = lastFocused || premisesEl;
-
-    // 대상 입력칸에 포커스를 준다.
     target.focus();
-
-    // 현재 선택 시작 위치.
     const start = target.selectionStart ?? target.value.length;
-
-    // 현재 선택 끝 위치.
     const end = target.selectionEnd ?? target.value.length;
-
-    // 기존 입력값.
     const value = target.value;
-
-    // 선택된 부분을 symbol로 교체한다.
     target.value = value.slice(0, start) + symbol + value.slice(end);
-
-    // 커서를 삽입된 symbol 뒤로 이동한다.
     target.selectionStart = target.selectionEnd = start + symbol.length;
   });
 });
 
-// 현재 사용하는 signature를 만든다.
-// 지금 버전에서는 기본 signature만 사용한다.
 function readCurrentSignature() {
   return buildSignature();
 }
 
-// Proof 버튼을 눌렀을 때 실행된다.
 proofBtn.addEventListener("click", () => {
   try {
-    // 전제 입력값.
     const premiseText = premisesEl.value.trim();
-
-    // 결론 입력값.
     const conclusionText = conclusionEl.value.trim();
-
-    // 결론이 비어 있으면 에러 메시지를 출력하고 중단한다.
     if (!conclusionText) {
       outputEl.className = "output error";
       outputEl.textContent = "결론을 입력해 주세요.";
       return;
     }
 
-    // 현재 signature 생성.
     const signature = readCurrentSignature();
-
-    // 증명 탐색 실행.
     const result = solveProofData(premiseText, conclusionText, signature);
-
-    // 출력 영역을 일반 상태로 바꾼다.
     outputEl.className = "output";
-
-    // 결과를 HTML로 렌더링한다.
     outputEl.innerHTML = renderProofResult(result);
   } catch (err) {
-    // 파싱 실패나 증명 생성 중 예외가 나면 에러 메시지를 출력한다.
+
     outputEl.className = "output error";
     outputEl.textContent = "식 입력이 잘못됐습니다 or 현재 버전에서 증명을 찾지 못했습니다";
   }
 });
 
-// 줄 구분 켜기/끄기 버튼 클릭 처리.
 stripeToggleBtn.addEventListener("click", () => {
-  // 현재 상태를 반대로 바꾼다.
+
   zebraStripingEnabled = !zebraStripingEnabled;
 
-  // 전역 상태도 갱신한다.
   window.zebraStripingEnabled = zebraStripingEnabled;
 
-  // 버튼 문구를 갱신한다.
   stripeToggleBtn.textContent = `줄 구분: ${zebraStripingEnabled ? "켜짐" : "꺼짐"}`;
 
-  // 현재 출력된 Fitch proof 요소를 찾는다.
   const proofEl = outputEl.querySelector(".fitch-proof");
 
-  // 이미 출력된 proof가 있으면 class를 즉시 바꿔 화면에 반영한다.
   if (proofEl) {
     proofEl.classList.toggle("zebra-on", zebraStripingEnabled);
     proofEl.classList.toggle("zebra-off", !zebraStripingEnabled);
   }
 });
 
-// 테마 버튼 클릭 처리.
 themeToggleBtn.addEventListener("click", () => {
-  // 라이트/다크 상태를 반대로 바꾼다.
   lightThemeEnabled = !lightThemeEnabled;
-
-  // body에 light-theme 클래스를 켜거나 끈다.
   document.body.classList.toggle("light-theme", lightThemeEnabled);
-
-  // 버튼 문구를 갱신한다.
   themeToggleBtn.textContent = `화면 테마: ${lightThemeEnabled ? "라이트" : "다크"}`;
 });
 
-// 모두 지우기 버튼 클릭 처리.
 clearBtn.addEventListener("click", () => {
-  // 전제 입력칸 비우기.
   premisesEl.value = "";
-
-  // 결론 입력칸 비우기.
   conclusionEl.value = "";
-
-  // 출력 영역을 일반 상태로 되돌린다.
   outputEl.className = "output";
-
-  // 출력 영역 기본 문구 복원.
   outputEl.innerHTML = "이곳에 결과가 표시됩니다.";
-
-  // 전제 입력칸에 포커스를 둔다.
   premisesEl.focus();
 
   // 마지막 포커스 대상도 전제 입력칸으로 기록한다.
